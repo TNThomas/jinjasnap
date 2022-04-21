@@ -1,3 +1,4 @@
+from typing import List
 from jinja2 import TemplateSyntaxError, nodes
 from jinja2.ext import Extension
 from jinja2.runtime import Context
@@ -19,7 +20,7 @@ class AssetBundleExtension(Extension):
         # add the defaults to the environment
         environment.extend(dist_directory="/dist")
 
-    def parse(self, parser) -> nodes.Node:
+    def parse(self, parser) -> List[nodes.Node]:
         """
         Called when the `{% bundle %}` tag is read in a template
         """
@@ -44,6 +45,7 @@ class AssetBundleExtension(Extension):
         # Get the output location for this file type from earlier in the document, if one is already declared
         bundle_ctx = context.get(f"{src_type.bundle_type}_LOC", None)
 
+        result: List[nodes.Node] = []
         is_new_output: bool = False
         if not bundle_ctx:
             # No output location was declared before
@@ -56,10 +58,13 @@ class AssetBundleExtension(Extension):
                 # Assign output file for our use now
                 bundle_ctx = args[1]
                 # nodes.Assign output file so we have it in the context next time we hit a {% bundle %}
-                result = nodes.Assign(f"{src_type.bundle_type}_LOC", bundle_ctx)
+                result.extend([
+                    nodes.Assign(f"{src_type.bundle_type}_LOC", bundle_ctx),
+                    nodes.Const(src_type.generate_tag(args[0], bundle_ctx))
+                ])
 
         else:
             # We have to return a Node, so let's make sure it doesn't mess up the template.
             result = nodes.Const("")
-        src_type.bundle(src=args[0], dst=bundle_ctx)
+        src_type.bundle(src=args[0], dst=bundle_ctx, overwrite=is_new_output)
         return result
